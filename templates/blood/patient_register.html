@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+
+{% block title %}Patient Registration - Blood Bank System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Patient Registration</li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm border-0 mb-5">
+            <div class="card-header bg-danger text-white py-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="fw-bold mb-0">
+                            <i class="bi bi-person-plus-fill me-2"></i>Patient Registration Form
+                        </h4>
+                        <small class="opacity-75">Fill in your user credentials and medical profile to register</small>
+                    </div>
+                    <span class="badge bg-light text-danger fw-semibold px-3 py-2 rounded-pill">
+                        Task 3
+                    </span>
+                </div>
+            </div>
+
+            <div class="card-body p-4 p-md-5">
+                <form method="POST" enctype="multipart/form-data" novalidate>
+                    {% csrf_token %}
+
+                    <!-- Section 1: User Account Details -->
+                    <div class="mb-4">
+                        <div class="d-flex align-items-center border-bottom pb-2 mb-3">
+                            <span class="badge bg-danger rounded-circle p-2 me-2">
+                                <i class="bi bi-person-badge text-white"></i>
+                            </span>
+                            <h5 class="fw-bold text-dark mb-0">1. User Account Credentials</h5>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="{{ user_form.first_name.id_for_label }}" class="form-label fw-semibold">
+                                    First Name <span class="text-danger">*</span>
+                                </label>
+                                {{ user_form.first_name }}
+                                {% if user_form.first_name.errors %}
+                                    <div class="text-danger small mt-1">{{ user_form.first_name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="{{ user_form.last_name.id_for_label }}" class="form-label fw-semibold">
+                                    Last Name <span class="text-danger">*</span>
+                                </label>
+                                {{ user_form.last_name }}
+                                {% if user_form.last_name.errors %}
+                                    <div class="text-danger small mt-1">{{ user_form.last_name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="{{ user_form.username.id_for_label }}" class="form-label fw-semibold">
+                                    Username <span class="text-danger">*</span>
+                                </label>
+                                {{ user_form.username }}
+                                {% if user_form.username.errors %}
+                                    <div class="text-danger small mt-1">{{ user_form.username.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="{{ user_form.email.id_for_label }}" class="form-label fw-semibold">
+                                    Email Address <span class="text-danger">*</span>
+                                </label>
+                                {{ user_form.email }}
+                                {% if user_form.email.errors %}
+                                    <div class="text-danger small mt-1">{{ user_form.email.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="{{ user_form.password.id_for_label }}" class="form-label fw-semibold">
+                                    Password <span class="text-danger">*</span>
+                                </label>
+                                {{ user_form.password }}
+                                {% if user_form.password.errors %}
+                                    <div class="text-danger small mt-1">{{ user_form.password.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Patient Medical Details (use provided Patient model) -->
+                    <div class="mb-4 pt-3">
+                        <div class="d-flex align-items-center border-bottom pb-2 mb-3">
+                            <span class="badge bg-danger rounded-circle p-2 me-2">
+                                <i class="bi bi-heart-pulse text-white"></i>
+                            </span>
+                            <h5 class="fw-bold text-dark mb-0">2. Patient & Medical Details (Patient Model)</h5>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label for="{{ patient_form.age.id_for_label }}" class="form-label fw-semibold">
+                                    Age <span class="text-danger">*</span>
+                                </label>
+                                {{ patient_form.age }}
+                                {% if patient_form.age.errors %}
+                                    <div class="text-danger small mt-1">{{ patient_form.age.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="{{ patient_form.bloodgroup.id_for_label }}" class="form-label fw-semibold">
+                                    Blood Group Needed <span class="text-danger">*</span>
+                                </label>
+                                {{ patient_form.bloodgroup }}
+                                {% if patient_form.bloodgroup.errors %}
+                                    <div class="text-danger small mt-1">{{ patient_form.bloodgroup.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="{{ patient_form.disease.id_for_label }}" class="form-label fw-semibold">
+                                    Disease / Reason for Blood <span class="text-danger">*</span>
+                                </label>
+                                {{ patient_form.disease }}
+                                {% if patient_form.disease.errors %}
+                                    <div class="text-danger small mt-1">{{ patient_form.disease.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="{{ patient_form.doctorname.id_for_label }}" class="form-label fw-semibold">
+                                    Consulting Doctor Name <span class="text-danger">*</span>
+                                </label>
+                                {{ patient_form.doctorname }}
+                                {% if patient_form.doctorname.errors %}
+                                    <div class="text-danger small mt-1">{{ patient_form.doctorname.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="{{ patient_form.mobile.id_for_label }}" class="form-label fw-semibold">
+                                    Contact Mobile <span class="text-danger">*</span>
+                                </label>
+                                {{ patient_form.mobile }}
+                                {% if patient_form.mobile.errors %}
+                                    <div class="text-danger small mt-1">{{ patient_form.mobile.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-8">
+                                <label for="{{ patient_form.address.id_for_label }}" class="form-label fw-semibold">
+                                    Residential Address <span class="text-danger">*</span>
+                                </label>
+                                {{ patient_form.address }}
+                                {% if patient_form.address.errors %}
+                                    <div class="text-danger small mt-1">{{ patient_form.address.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="{{ patient_form.profile_pic.id_for_label }}" class="form-label fw-semibold">
+                                    Profile Photo (Optional)
+                                </label>
+                                {{ patient_form.profile_pic }}
+                                {% if patient_form.profile_pic.errors %}
+                                    <div class="text-danger small mt-1">{{ patient_form.profile_pic.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center pt-4 border-top gap-3">
+                        <div class="text-muted small">
+                            Already registered? <a href="{% url 'patient_login' %}" class="text-danger fw-semibold">Log in here</a>
+                        </div>
+                        <button type="submit" class="btn btn-danger btn-lg px-5 shadow-sm">
+                            <i class="bi bi-check-circle-fill me-2"></i>Complete Registration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

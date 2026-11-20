@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block title %}Blood Stock Inventory - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Stock Management</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold text-dark mb-0">
+            <i class="bi bi-droplet-half text-danger me-2"></i>Blood Stock Inventory
+        </h2>
+        <p class="text-muted small mb-0">Admin view to monitor, update, and manage available blood units</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'add_stock' %}" class="btn btn-danger shadow-sm px-3">
+            <i class="bi bi-plus-circle me-1"></i> Add New Stock
+        </a>
+    </div>
+</div>
+
+<!-- Stock Highlights Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-4">
+        <div class="card shadow-sm border-0 bg-white p-3">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0 bg-danger-subtle text-danger rounded-3 p-3 me-3">
+                    <i class="bi bi-droplet-fill fs-3"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-medium">Total Blood Units</div>
+                    <h3 class="fw-bold text-dark mb-0">{{ total_units }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card shadow-sm border-0 bg-white p-3">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0 bg-primary-subtle text-primary rounded-3 p-3 me-3">
+                    <i class="bi bi-collection-fill fs-3"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-medium">Recorded Groups</div>
+                    <h3 class="fw-bold text-dark mb-0">{{ stocks|length }} / 8</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-12 col-lg-4">
+        <div class="card shadow-sm border-0 bg-white p-3">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0 bg-success-subtle text-success rounded-3 p-3 me-3">
+                    <i class="bi bi-shield-check fs-3"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-medium">Access Control</div>
+                    <h5 class="fw-bold text-dark mb-0">Admin Authorized</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table Card (Task 5 & Task 2 & Task 1) -->
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0 text-dark">
+            <i class="bi bi-table text-danger me-2"></i>Current Stock Table
+        </h5>
+        <span class="badge bg-secondary-subtle text-secondary border">Showing {{ stocks|length }} records</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th scope="col" class="ps-4" style="width: 80px;">#</th>
+                        <th scope="col">Blood Group</th>
+                        <th scope="col">Available Units (Bags)</th>
+                        <th scope="col">Stock Status</th>
+                        <th scope="col" class="text-center" style="width: 220px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in stocks %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-muted">{{ forloop.counter }}</td>
+                        <td>
+                            <span class="badge bg-danger blood-badge">
+                                <i class="bi bi-droplet-fill me-1"></i>{{ stock.bloodgroup }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="fs-5 fw-bold text-dark">{{ stock.unit }}</span>
+                            <span class="text-muted small ms-1">units</span>
+                        </td>
+                        <td>
+                            {% if stock.unit >= 10 %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Sufficient Stock
+                                </span>
+                            {% elif stock.unit > 0 %}
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 rounded-pill">
+                                    <i class="bi bi-exclamation-circle-fill me-1"></i>Low Stock Alert
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill">
+                                    <i class="bi bi-x-circle-fill me-1"></i>Out of Stock
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <!-- Task 1: Update & Delete Functionality -->
+                            <div class="btn-group" role="group" aria-label="Stock Actions">
+                                <a href="{% url 'update_stock' stock.pk %}" class="btn btn-sm btn-outline-primary" title="Update Units">
+                                    <i class="bi bi-pencil-square me-1"></i>Update
+                                </a>
+                                <a href="{% url 'delete_stock' stock.pk %}" class="btn btn-sm btn-outline-danger" title="Delete Stock">
+                                    <i class="bi bi-trash me-1"></i>Delete
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                            <p class="mb-2">No blood stock entries found in the database.</p>
+                            <a href="{% url 'add_stock' %}" class="btn btn-sm btn-danger">
+                                <i class="bi bi-plus-lg me-1"></i>Add Initial Blood Stock
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
