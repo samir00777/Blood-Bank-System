@@ -1,5 +1,0 @@
-https://github.com/samir00777/Blood-Bank-System/blob/main/blood/views.py <-- patient_login_view & patient_logout_view using Django auth
-https://github.com/samir00777/Blood-Bank-System/blob/main/blood/urls.py <-- path('patient-login/', ...) & path('patient-logout/', ...)
-https://github.com/samir00777/Blood-Bank-System/blob/main/templates/blood/login.html <-- Patient login form template
-https://github.com/samir00777/Blood-Bank-System/blob/main/templates/blood/patient_dashboard.html <-- Authenticated patient dashboard UI
-https://github.com/samir00777/Blood-Bank-System/blob/main/templates/base.html <-- Responsive navbar with patient session & logout link
