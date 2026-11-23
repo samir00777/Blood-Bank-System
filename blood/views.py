@@ -219,14 +219,15 @@ def admin_login_view(request):
 
 
 # ==========================================
-# Patient Authentication Views (Django Auth)
+# Patient Authentication & Dashboard Views (Django Auth + Session Handling)
 # ==========================================
 def patient_login_view(request):
     """
-    Task: Implement login view for patients using Django auth.
+    Task: Implement login view for patients using Django auth with session handling.
     - Validates patient credentials via AuthenticationForm.
+    - Sets up session attributes ('role': 'patient', 'patient_id', 'bloodgroup').
     - Authenticates and logs in patient using Django's login().
-    - Redirects to patient dashboard on success.
+    - Redirects to patient_dashboard on success.
     """
     if request.user.is_authenticated:
         return redirect('patient_dashboard')
@@ -236,6 +237,14 @@ def patient_login_view(request):
         if form.is_valid():
             user = form.get_user()
             login(request, user)
+
+            # Session handling: Store patient session data
+            request.session['role'] = 'patient'
+            request.session['username'] = user.username
+            if hasattr(user, 'patient_profile'):
+                request.session['patient_id'] = user.patient_profile.id
+                request.session['bloodgroup'] = user.patient_profile.bloodgroup
+
             messages.success(request, f'Welcome back, {user.first_name or user.username}!')
             return redirect('patient_dashboard')
         else:
@@ -253,9 +262,11 @@ def patient_login_view(request):
 def patient_logout_view(request):
     """
     Task: Implement logout view for patients using Django auth.
-    - Flushes session and logs out user via Django's logout().
+    - Clears all session keys and flushes session data.
+    - Logs out user via Django's logout().
     - Redirects with a friendly notification message.
     """
+    request.session.flush()
     logout(request)
     messages.info(request, 'You have been successfully logged out.')
     return redirect('patient_login')
@@ -264,13 +275,43 @@ def patient_logout_view(request):
 @login_required(login_url='patient_login')
 def patient_dashboard(request):
     """
-    Patient dashboard showing profile summary and details.
+    Task: Create a dashboard/homepage for patients after login with session handling.
+    - Validates active session and user authentication.
+    - Retrieves patient medical profile and session state.
+    - Displays available blood units matching the patient's blood type.
+    - Computes compatible donor blood groups for emergency reference.
     """
     patient = getattr(request.user, 'patient_profile', None)
-    return render(request, 'blood/patient_dashboard.html', {
+
+    # Blood compatibility reference map (recipient -> acceptable donor types)
+    compatibility_map = {
+        'A+': ['A+', 'A-', 'O+', 'O-'],
+        'A-': ['A-', 'O-'],
+        'B+': ['B+', 'B-', 'O+', 'O-'],
+        'B-': ['B-', 'O-'],
+        'AB+': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+        'AB-': ['AB-', 'A-', 'B-', 'O-'],
+        'O+': ['O+', 'O-'],
+        'O-': ['O-'],
+    }
+
+    matching_stock = None
+    compatible_groups = []
+    if patient:
+        matching_stock = Stock.objects.filter(bloodgroup=patient.bloodgroup).first()
+        compatible_groups = compatibility_map.get(patient.bloodgroup, [])
+
+    total_stock = Stock.objects.aggregate(Sum('unit'))['unit__sum'] or 0
+
+    context = {
         'patient': patient,
-        'user': request.user
-    })
+        'user': request.user,
+        'matching_stock': matching_stock,
+        'compatible_groups': compatible_groups,
+        'total_stock': total_stock,
+        'session_role': request.session.get('role', 'patient'),
+    }
+    return render(request, 'blood/patient_dashboard.html', context)
 
 
 def logout_view(request):

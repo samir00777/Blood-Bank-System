@@ -219,6 +219,35 @@ class BloodBankSystemTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn(reverse('patient_login'), response.url)
 
+    def test_patient_dashboard_content_and_session(self):
+        # Create user and patient profile
+        user = User.objects.create_user(username='dashuser', password='password123', first_name='Alex')
+        patient = Patient.objects.create(
+            user=user, age=35, bloodgroup='A+', disease='Thalassemia',
+            doctorname='Dr. Johnson', mobile='9876543299', address='45 Health Ave'
+        )
+        # Login
+        login_resp = self.client.post(reverse('patient_login'), {
+            'username': 'dashuser',
+            'password': 'password123'
+        })
+        self.assertRedirects(login_resp, reverse('patient_dashboard'))
+
+        # Verify session state
+        self.assertEqual(self.client.session.get('role'), 'patient')
+        self.assertEqual(self.client.session.get('patient_id'), patient.id)
+        self.assertEqual(self.client.session.get('bloodgroup'), 'A+')
+
+        # Access dashboard
+        response = self.client.get(reverse('patient_dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Welcome, Alex!')
+        self.assertContains(response, 'Session Active (Patient)')
+        self.assertContains(response, 'A+')
+        self.assertContains(response, 'Thalassemia')
+        self.assertContains(response, 'Dr. Johnson')
+        self.assertContains(response, 'Compatible Donor Groups')
+
     # ==========================================
     # Task 2: UI responsiveness and Home page
     # ==========================================
