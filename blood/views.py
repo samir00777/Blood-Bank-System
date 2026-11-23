@@ -218,10 +218,18 @@ def admin_login_view(request):
     return render(request, 'blood/login.html', {'form': form, 'title': 'Admin Login', 'is_admin': True})
 
 
+# ==========================================
+# Patient Authentication Views (Django Auth)
+# ==========================================
 def patient_login_view(request):
-    """Login view for registered patients."""
+    """
+    Task: Implement login view for patients using Django auth.
+    - Validates patient credentials via AuthenticationForm.
+    - Authenticates and logs in patient using Django's login().
+    - Redirects to patient dashboard on success.
+    """
     if request.user.is_authenticated:
-        return redirect('home')
+        return redirect('patient_dashboard')
 
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -229,17 +237,44 @@ def patient_login_view(request):
             user = form.get_user()
             login(request, user)
             messages.success(request, f'Welcome back, {user.first_name or user.username}!')
-            return redirect('home')
+            return redirect('patient_dashboard')
         else:
-            messages.error(request, 'Invalid username or password.')
+            messages.error(request, 'Invalid username or password. Please try again.')
     else:
         form = AuthenticationForm()
 
-    return render(request, 'blood/login.html', {'form': form, 'title': 'Patient Login', 'is_admin': False})
+    return render(request, 'blood/login.html', {
+        'form': form,
+        'title': 'Patient Login',
+        'is_admin': False
+    })
+
+
+def patient_logout_view(request):
+    """
+    Task: Implement logout view for patients using Django auth.
+    - Flushes session and logs out user via Django's logout().
+    - Redirects with a friendly notification message.
+    """
+    logout(request)
+    messages.info(request, 'You have been successfully logged out.')
+    return redirect('patient_login')
+
+
+@login_required(login_url='patient_login')
+def patient_dashboard(request):
+    """
+    Patient dashboard showing profile summary and details.
+    """
+    patient = getattr(request.user, 'patient_profile', None)
+    return render(request, 'blood/patient_dashboard.html', {
+        'patient': patient,
+        'user': request.user
+    })
 
 
 def logout_view(request):
-    """Logs out user and redirects to home page."""
+    """General logout redirecting to home."""
     logout(request)
     messages.info(request, 'You have been logged out.')
     return redirect('home')

@@ -180,6 +180,46 @@ class BloodBankSystemTests(TestCase):
         self.assertFalse(User.objects.filter(username='bobbuild').exists())
 
     # ==========================================
+    # Task: Patient Login & Logout Views (Django Auth)
+    # ==========================================
+    def test_patient_login_success(self):
+        # Create a registered patient user
+        user = User.objects.create_user(username='patientuser', password='password123')
+        Patient.objects.create(
+            user=user, age=30, bloodgroup='O+', disease='None',
+            doctorname='Dr. Smith', mobile='9876543210', address='City'
+        )
+        response = self.client.post(reverse('patient_login'), {
+            'username': 'patientuser',
+            'password': 'password123'
+        })
+        # Should redirect to patient dashboard
+        self.assertRedirects(response, reverse('patient_dashboard'))
+        self.assertTrue('_auth_user_id' in self.client.session)
+
+    def test_patient_login_invalid_credentials(self):
+        response = self.client.post(reverse('patient_login'), {
+            'username': 'wronguser',
+            'password': 'wrongpassword'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Invalid username or password')
+        self.assertFalse('_auth_user_id' in self.client.session)
+
+    def test_patient_logout(self):
+        user = User.objects.create_user(username='patientlogout', password='password123')
+        self.client.login(username='patientlogout', password='password123')
+        response = self.client.get(reverse('patient_logout'))
+        # Should redirect to patient login
+        self.assertRedirects(response, reverse('patient_login'))
+        self.assertFalse('_auth_user_id' in self.client.session)
+
+    def test_patient_dashboard_requires_login(self):
+        response = self.client.get(reverse('patient_dashboard'))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('patient_login'), response.url)
+
+    # ==========================================
     # Task 2: UI responsiveness and Home page
     # ==========================================
     def test_home_page_rendered_with_bootstrap(self):

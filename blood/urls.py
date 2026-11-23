@@ -13,8 +13,10 @@ urlpatterns = [
     # Patient Registration (User + Patient)
     path('patient/register/', views.patient_register, name='patient_register'), # Task 3
 
-    # Authentication
+    # Authentication & Dashboard (Django Auth)
     path('admin-login/', views.admin_login_view, name='admin_login'),
     path('patient-login/', views.patient_login_view, name='patient_login'),
+    path('patient-logout/', views.patient_logout_view, name='patient_logout'),
+    path('patient-dashboard/', views.patient_dashboard, name='patient_dashboard'),
     path('logout/', views.logout_view, name='logout'),
 ]

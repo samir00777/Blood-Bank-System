@@ -1,0 +1,4 @@
+https://github.com/samir00777/Blood-Bank-System/blob/main/blood/views.py <-- patient_register view with form validation & DB save
+https://github.com/samir00777/Blood-Bank-System/blob/main/blood/forms.py <-- PatientUserForm & PatientForm validation
+https://github.com/samir00777/Blood-Bank-System/blob/main/blood/urls.py <-- path('patient/register/', views.patient_register, name='patient_register')
+https://github.com/samir00777/Blood-Bank-System/blob/main/templates/blood/patient_register.html <-- Patient registration UI with validation errors

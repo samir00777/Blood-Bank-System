@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}Patient Dashboard - Blood Bank System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <!-- Header Banner -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3 bg-white p-4 rounded-4 shadow-sm border">
+            <div>
+                <span class="badge bg-danger-subtle text-danger fw-semibold px-3 py-2 rounded-pill mb-2">
+                    <i class="bi bi-person-heart me-1"></i> Patient Portal
+                </span>
+                <h2 class="fw-bold text-dark mb-1">Welcome, {{ user.first_name|default:user.username }}!</h2>
+                <p class="text-muted small mb-0">Manage your patient profile and view blood bank services</p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'patient_logout' %}" class="btn btn-outline-danger">
+                    <i class="bi bi-box-arrow-right me-1"></i> Logout
+                </a>
+            </div>
+        </div>
+
+        <!-- Profile Details Card -->
+        {% if patient %}
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 text-center p-4 h-100 bg-white">
+                    <div class="card-body">
+                        {% if patient.profile_pic %}
+                            <img src="{{ patient.profile_pic.url }}" alt="{{ patient.get_name }}" class="rounded-circle img-thumbnail shadow-sm mb-3" style="width: 140px; height: 140px; object-fit: cover;">
+                        {% else %}
+                            <div class="d-inline-flex align-items-center justify-content-center bg-danger-subtle text-danger rounded-circle mb-3 shadow-sm" style="width: 120px; height: 120px;">
+                                <i class="bi bi-person-fill display-3"></i>
+                            </div>
+                        {% endif %}
+                        <h4 class="fw-bold mb-1">{{ patient.get_name }}</h4>
+                        <p class="text-muted small mb-3">@{{ user.username }}</p>
+                        <span class="badge bg-danger blood-badge fs-6 px-3 py-2">
+                            <i class="bi bi-droplet-fill me-1"></i>{{ patient.bloodgroup }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0 h-100 bg-white">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h5 class="fw-bold mb-0 text-dark">
+                            <i class="bi bi-clipboard-pulse text-danger me-2"></i>Medical & Contact Information
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <div class="text-muted small fw-medium">Email Address</div>
+                                <div class="fw-bold text-dark">{{ user.email|default:"Not provided" }}</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small fw-medium">Contact Mobile</div>
+                                <div class="fw-bold text-dark">{{ patient.mobile }}</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small fw-medium">Patient Age</div>
+                                <div class="fw-bold text-dark">{{ patient.age }} years</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small fw-medium">Blood Group</div>
+                                <div class="fw-bold text-danger">{{ patient.bloodgroup }}</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small fw-medium">Consulting Doctor</div>
+                                <div class="fw-bold text-dark">{{ patient.doctorname }}</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small fw-medium">Disease / Reason</div>
+                                <div class="fw-bold text-dark">{{ patient.disease }}</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="text-muted small fw-medium">Residential Address</div>
+                                <div class="fw-bold text-dark">{{ patient.address }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-warning shadow-sm">
+            <i class="bi bi-exclamation-circle-fill me-2"></i>
+            No medical profile linked to this account yet.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
