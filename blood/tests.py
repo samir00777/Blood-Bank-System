@@ -118,6 +118,66 @@ class BloodBankSystemTests(TestCase):
         self.assertEqual(patient.disease, 'Severe Anemia')
         self.assertEqual(patient.doctorname, 'Dr. Sarah Smith')
         self.assertEqual(patient.get_name, 'John Doe')
+        self.assertTrue(user.groups.filter(name='PATIENT').exists())
+
+    def test_patient_registration_validation_duplicate_username(self):
+        # Create an existing user
+        User.objects.create_user(username='existinguser', password='password123', email='exist@example.com')
+        payload = {
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'username': 'existinguser',
+            'email': 'jane@example.com',
+            'password': 'Password123!',
+            'age': 30,
+            'bloodgroup': 'A+',
+            'disease': 'Surgery',
+            'doctorname': 'Dr. Adams',
+            'mobile': '9876543211',
+            'address': 'Street 1, City',
+        }
+        response = self.client.post(reverse('patient_register'), payload)
+        self.assertEqual(response.status_code, 200) # Form re-renders with error
+        self.assertContains(response, 'This username is already taken')
+        self.assertEqual(Patient.objects.filter(user__username='existinguser').count(), 0)
+
+    def test_patient_registration_validation_invalid_mobile(self):
+        payload = {
+            'first_name': 'Alice',
+            'last_name': 'Wonder',
+            'username': 'alicew',
+            'email': 'alice@example.com',
+            'password': 'Password123!',
+            'age': 25,
+            'bloodgroup': 'B+',
+            'disease': 'Checkup',
+            'doctorname': 'Dr. Brown',
+            'mobile': '12345', # Invalid mobile length
+            'address': 'Wonderland',
+        }
+        response = self.client.post(reverse('patient_register'), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Please enter a valid mobile number')
+        self.assertFalse(User.objects.filter(username='alicew').exists())
+
+    def test_patient_registration_validation_invalid_age(self):
+        payload = {
+            'first_name': 'Bob',
+            'last_name': 'Builder',
+            'username': 'bobbuild',
+            'email': 'bob@example.com',
+            'password': 'Password123!',
+            'age': 150, # Invalid age > 120
+            'bloodgroup': 'AB+',
+            'disease': 'Fracture',
+            'doctorname': 'Dr. Stone',
+            'mobile': '9876543212',
+            'address': 'Brick Street',
+        }
+        response = self.client.post(reverse('patient_register'), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Please enter a valid age between 1 and 120')
+        self.assertFalse(User.objects.filter(username='bobbuild').exists())
 
     # ==========================================
     # Task 2: UI responsiveness and Home page

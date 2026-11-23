@@ -1,3 +1,4 @@
+import re
 from django import forms
 from django.contrib.auth.models import User
 from .models import Stock, Patient, BLOOD_GROUP_CHOICES
@@ -30,7 +31,7 @@ class StockForm(forms.ModelForm):
 
 class PatientUserForm(forms.ModelForm):
     """
-    Collects User credentials and personal identity for patient registration.
+    Collects and validates User credentials for patient registration.
     """
     password = forms.CharField(
         widget=forms.PasswordInput(attrs={
@@ -38,7 +39,7 @@ class PatientUserForm(forms.ModelForm):
             'placeholder': 'Choose a strong password',
             'autocomplete': 'new-password'
         }),
-        help_text='At least 8 characters recommended.'
+        help_text='At least 6 characters recommended.'
     )
 
     class Meta:
@@ -51,10 +52,32 @@ class PatientUserForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'name@example.com', 'required': 'required'}),
         }
 
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+        if len(username) < 3:
+            raise forms.ValidationError('Username must be at least 3 characters long.')
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError('This username is already taken. Please choose another.')
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip()
+        if not email:
+            raise forms.ValidationError('Email address is required.')
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
+    def clean_password(self):
+        password = self.cleaned_data.get('password', '')
+        if len(password) < 6:
+            raise forms.ValidationError('Password must be at least 6 characters long.')
+        return password
+
 
 class PatientForm(forms.ModelForm):
     """
-    Collects Patient medical and contact details (uses provided Patient model).
+    Collects and validates Patient medical and contact details (uses provided Patient model).
     """
     class Meta:
         model = Patient
@@ -75,3 +98,16 @@ class PatientForm(forms.ModelForm):
             'mobile': 'Contact Mobile',
             'profile_pic': 'Profile Picture (Optional)'
         }
+
+    def clean_age(self):
+        age = self.cleaned_data.get('age')
+        if age is None or age < 1 or age > 120:
+            raise forms.ValidationError('Please enter a valid age between 1 and 120.')
+        return age
+
+    def clean_mobile(self):
+        mobile = self.cleaned_data.get('mobile', '').strip()
+        digits_only = re.sub(r'[\s\-+]', '', mobile)
+        if not digits_only.isdigit() or len(digits_only) < 10 or len(digits_only) > 15:
+            raise forms.ValidationError('Please enter a valid mobile number (10 to 15 digits).')
+        return mobile

@@ -3,6 +3,8 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.models import Group
+from django.db import transaction
 from django.db.models import Sum
 
 from .models import Stock, Patient, BLOOD_GROUP_CHOICES
@@ -140,32 +142,45 @@ def delete_stock(request, pk):
 
 
 # ==========================================
-# Task 3: Patient Registration View (User + Patient)
+# Task: Patient Registration View with Form Validation & DB Save
 # ==========================================
 def patient_register(request):
     """
-    Task 3: Create a registration form that collects User data
-    and Patient details (use provided Patient model).
+    Implement view logic to register patient with form validation and save to DB.
+    - Validates User account credentials and Patient medical information.
+    - Uses an atomic transaction to ensure both User and Patient are saved together.
+    - Hashes password safely before database commit.
+    - Assigns user to the PATIENT security group.
+    - Persists Patient linked to User and redirects with success feedback.
     """
     if request.method == 'POST':
         user_form = PatientUserForm(request.POST)
         patient_form = PatientForm(request.POST, request.FILES)
 
+        # Form Validation
         if user_form.is_valid() and patient_form.is_valid():
-            # 1. Create User instance
-            user = user_form.save(commit=False)
-            user.set_password(user_form.cleaned_data['password'])
-            user.save()
+            try:
+                with transaction.atomic():
+                    # 1. Create and save User instance with hashed password
+                    user = user_form.save(commit=False)
+                    user.set_password(user_form.cleaned_data['password'])
+                    user.save()
 
-            # 2. Create Patient instance linked to user
-            patient = patient_form.save(commit=False)
-            patient.user = user
-            patient.save()
+                    # 2. Assign to PATIENT group
+                    patient_group, _ = Group.objects.get_or_create(name='PATIENT')
+                    user.groups.add(patient_group)
 
-            messages.success(request, f'Registration successful for {user.username}! You can now log in.')
-            return redirect('patient_login')
+                    # 3. Create and save Patient instance linked to User into DB
+                    patient = patient_form.save(commit=False)
+                    patient.user = user
+                    patient.save()
+
+                messages.success(request, f'Registration successful for {user.username}! You can now log in.')
+                return redirect('patient_login')
+            except Exception as e:
+                messages.error(request, f'Database error while saving patient: {str(e)}')
         else:
-            messages.error(request, 'Registration failed. Please check the form errors below.')
+            messages.error(request, 'Registration failed. Please correct the validation errors below.')
     else:
         user_form = PatientUserForm()
         patient_form = PatientForm()
