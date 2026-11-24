@@ -7,8 +7,8 @@ from django.contrib.auth.models import Group
 from django.db import transaction
 from django.db.models import Sum
 
-from .models import Stock, Patient, BLOOD_GROUP_CHOICES
-from .forms import StockForm, PatientUserForm, PatientForm
+from .models import Stock, Patient, Donor, BLOOD_GROUP_CHOICES
+from .forms import StockForm, PatientUserForm, PatientForm, DonorUserForm, DonorForm
 
 
 def is_admin(user):
@@ -24,11 +24,13 @@ def home(request):
     stocks = Stock.objects.all().order_by('bloodgroup')
     total_units = stocks.aggregate(Sum('unit'))['unit__sum'] or 0
     patient_count = Patient.objects.count()
+    donor_count = Donor.objects.count()
 
     context = {
         'stocks': stocks,
         'total_units': total_units,
         'patient_count': patient_count,
+        'donor_count': donor_count,
         'blood_groups': BLOOD_GROUP_CHOICES,
     }
     return render(request, 'home.html', context)
@@ -190,6 +192,58 @@ def patient_register(request):
         'patient_form': patient_form,
     }
     return render(request, 'blood/patient_register.html', context)
+
+
+# ==========================================
+# Task: Donor Registration View with Form Validation & DB Save
+# ==========================================
+def donor_register(request):
+    """
+    Build view to save donor details with validation.
+    - Validates User account credentials (DonorUserForm) and Donor details (DonorForm).
+    - Uses an atomic transaction to ensure both User and Donor are saved together.
+    - Hashes password safely before database commit.
+    - Assigns user to the DONOR security group.
+    - Persists Donor linked to User into the database and redirects with success feedback.
+    """
+    if request.method == 'POST':
+        user_form = DonorUserForm(request.POST)
+        donor_form = DonorForm(request.POST, request.FILES)
+
+        # Form Validation
+        if user_form.is_valid() and donor_form.is_valid():
+            try:
+                with transaction.atomic():
+                    # 1. Create and save User instance with hashed password
+                    user = user_form.save(commit=False)
+                    user.set_password(user_form.cleaned_data['password'])
+                    user.save()
+
+                    # 2. Assign to DONOR group
+                    donor_group, _ = Group.objects.get_or_create(name='DONOR')
+                    user.groups.add(donor_group)
+
+                    # 3. Create and save Donor instance linked to User into DB
+                    donor = donor_form.save(commit=False)
+                    donor.user = user
+                    donor.save()
+
+                messages.success(request, f'Registration successful for donor {user.username}! Thank you for registering to save lives.')
+                return redirect('home')
+            except Exception as e:
+                messages.error(request, f'Database error while saving donor: {str(e)}')
+        else:
+            messages.error(request, 'Registration failed. Please correct the validation errors below.')
+    else:
+        user_form = DonorUserForm()
+        donor_form = DonorForm()
+
+    context = {
+        'user_form': user_form,
+        'donor_form': donor_form,
+    }
+    return render(request, 'blood/donor_register.html', context)
+
 
 
 # ==========================================

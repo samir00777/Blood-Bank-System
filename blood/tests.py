@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
-from blood.models import Stock, Patient
+from blood.models import Stock, Patient, Donor
 
 
 class BloodBankSystemTests(TestCase):
@@ -257,3 +257,97 @@ class BloodBankSystemTests(TestCase):
         self.assertContains(response, 'Blood Bank Management System')
         self.assertContains(response, 'Current Blood Stock')
         self.assertContains(response, 'cdn.jsdelivr.net/npm/bootstrap@5.3.3')
+
+    # ==========================================
+    # Task: Donor Registration View with Validation & DB Save
+    # ==========================================
+    def test_donor_register_get_renders_form(self):
+        response = self.client.get(reverse('donor_register'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Blood Donor Registration Form')
+        self.assertContains(response, 'Donor Profile Details')
+        self.assertContains(response, 'csrfmiddlewaretoken')
+
+    def test_donor_registration_success(self):
+        payload = {
+            'first_name': 'David',
+            'last_name': 'Donor',
+            'username': 'daviddonor',
+            'email': 'david.donor@example.com',
+            'password': 'SecureDonor123!',
+            'bloodgroup': 'O+',
+            'address': '742 Evergreen Terrace',
+            'mobile': '9876543210',
+        }
+        response = self.client.post(reverse('donor_register'), payload)
+        self.assertRedirects(response, reverse('home'))
+
+        # Check User created and password safely hashed
+        user = User.objects.filter(username='daviddonor').first()
+        self.assertIsNotNone(user)
+        self.assertEqual(user.first_name, 'David')
+        self.assertEqual(user.email, 'david.donor@example.com')
+        self.assertTrue(user.check_password('SecureDonor123!'))
+
+        # Check DONOR group assigned
+        self.assertTrue(user.groups.filter(name='DONOR').exists())
+
+        # Check Donor profile created and linked
+        donor = Donor.objects.filter(user=user).first()
+        self.assertIsNotNone(donor)
+        self.assertEqual(donor.bloodgroup, 'O+')
+        self.assertEqual(donor.mobile, '9876543210')
+        self.assertEqual(donor.address, '742 Evergreen Terrace')
+        self.assertEqual(donor.get_name, 'David Donor')
+
+    def test_donor_registration_validation_duplicate_username(self):
+        # Create user with same username
+        User.objects.create_user(username='existingdonor', email='old@example.com', password='Password123!')
+
+        payload = {
+            'first_name': 'New',
+            'last_name': 'Donor',
+            'username': 'existingdonor',
+            'email': 'new@example.com',
+            'password': 'Password123!',
+            'bloodgroup': 'A+',
+            'address': '123 Main St',
+            'mobile': '9876543210',
+        }
+        response = self.client.post(reverse('donor_register'), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'This username is already taken')
+        self.assertEqual(Donor.objects.filter(user__username='existingdonor').count(), 0)
+
+    def test_donor_registration_validation_invalid_mobile(self):
+        payload = {
+            'first_name': 'Frank',
+            'last_name': 'Donor',
+            'username': 'frankdonor',
+            'email': 'frank@example.com',
+            'password': 'Password123!',
+            'bloodgroup': 'B+',
+            'address': '456 Oak Ave',
+            'mobile': '12345', # Less than 10 digits
+        }
+        response = self.client.post(reverse('donor_register'), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Please enter a valid mobile number')
+        self.assertFalse(User.objects.filter(username='frankdonor').exists())
+
+    def test_donor_registration_validation_short_password(self):
+        payload = {
+            'first_name': 'Grace',
+            'last_name': 'Donor',
+            'username': 'gracedonor',
+            'email': 'grace@example.com',
+            'password': '123', # Less than 6 characters
+            'bloodgroup': 'AB-',
+            'address': '789 Pine St',
+            'mobile': '9876543210',
+        }
+        response = self.client.post(reverse('donor_register'), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Password must be at least 6 characters long')
+        self.assertFalse(User.objects.filter(username='gracedonor').exists())
+

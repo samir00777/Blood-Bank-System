@@ -54,3 +54,27 @@ class Patient(models.Model):
 
     def __str__(self):
         return f"{self.get_name} ({self.bloodgroup})"
+
+
+class Donor(models.Model):
+    """
+    Donor model linked to User model.
+    Stores contact and blood donation details of the donor.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='donor_profile')
+    profile_pic = models.ImageField(upload_to='profile_pic/Donor/', null=True, blank=True)
+    bloodgroup = models.CharField(max_length=10, choices=BLOOD_GROUP_CHOICES)
+    address = models.CharField(max_length=200)
+    mobile = models.CharField(max_length=20)
+
+    @property
+    def get_name(self):
+        return f"{self.user.first_name} {self.user.last_name}".strip() or self.user.username
+
+    @property
+    def get_instance(self):
+        return self
+
+    def __str__(self):
+        return f"{self.get_name} ({self.bloodgroup})"
+
