@@ -21,6 +21,8 @@ class Stock(models.Model):
     bloodgroup = models.CharField(max_length=10, choices=BLOOD_GROUP_CHOICES, unique=True)
     unit = models.PositiveIntegerField(default=0)
 
+    objects = models.Manager()
+
     class Meta:
         ordering = ['bloodgroup']
         verbose_name = 'Blood Stock'
@@ -44,6 +46,8 @@ class Patient(models.Model):
     address = models.CharField(max_length=200)
     mobile = models.CharField(max_length=20)
 
+    objects = models.Manager()
+
     @property
     def get_name(self):
         return f"{self.user.first_name} {self.user.last_name}".strip() or self.user.username
@@ -66,6 +70,8 @@ class Donor(models.Model):
     bloodgroup = models.CharField(max_length=10, choices=BLOOD_GROUP_CHOICES)
     address = models.CharField(max_length=200)
     mobile = models.CharField(max_length=20)
+
+    objects = models.Manager()
 
     @property
     def get_name(self):

@@ -283,8 +283,7 @@ class BloodBankSystemTests(TestCase):
         self.assertRedirects(response, reverse('home'))
 
         # Check User created and password safely hashed
-        user = User.objects.filter(username='daviddonor').first()
-        self.assertIsNotNone(user)
+        user = User.objects.get(username='daviddonor')
         self.assertEqual(user.first_name, 'David')
         self.assertEqual(user.email, 'david.donor@example.com')
         self.assertTrue(user.check_password('SecureDonor123!'))
@@ -293,8 +292,7 @@ class BloodBankSystemTests(TestCase):
         self.assertTrue(user.groups.filter(name='DONOR').exists())
 
         # Check Donor profile created and linked
-        donor = Donor.objects.filter(user=user).first()
-        self.assertIsNotNone(donor)
+        donor = Donor.objects.get(user=user)
         self.assertEqual(donor.bloodgroup, 'O+')
         self.assertEqual(donor.mobile, '9876543210')
         self.assertEqual(donor.address, '742 Evergreen Terrace')

@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import User, Group
 from django.db import transaction
 from django.db.models import Sum
 
@@ -164,7 +164,7 @@ def patient_register(request):
             try:
                 with transaction.atomic():
                     # 1. Create and save User instance with hashed password
-                    user = user_form.save(commit=False)
+                    user: User = user_form.save(commit=False)
                     user.set_password(user_form.cleaned_data['password'])
                     user.save()
 
@@ -173,7 +173,7 @@ def patient_register(request):
                     user.groups.add(patient_group)
 
                     # 3. Create and save Patient instance linked to User into DB
-                    patient = patient_form.save(commit=False)
+                    patient: Patient = patient_form.save(commit=False)
                     patient.user = user
                     patient.save()
 
@@ -215,7 +215,7 @@ def donor_register(request):
             try:
                 with transaction.atomic():
                     # 1. Create and save User instance with hashed password
-                    user = user_form.save(commit=False)
+                    user: User = user_form.save(commit=False)
                     user.set_password(user_form.cleaned_data['password'])
                     user.save()
 
@@ -224,7 +224,7 @@ def donor_register(request):
                     user.groups.add(donor_group)
 
                     # 3. Create and save Donor instance linked to User into DB
-                    donor = donor_form.save(commit=False)
+                    donor: Donor = donor_form.save(commit=False)
                     donor.user = user
                     donor.save()
 
