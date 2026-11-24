@@ -2,6 +2,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
 from blood.models import Stock, Patient, Donor
+from blood.forms import DonorUserForm, DonorForm
 
 
 class BloodBankSystemTests(TestCase):
@@ -348,4 +349,38 @@ class BloodBankSystemTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Password must be at least 6 characters long')
         self.assertFalse(User.objects.filter(username='gracedonor').exists())
+
+    # ==========================================
+    # Task: Donor Registration Forms (User & Donor)
+    # ==========================================
+    def test_donor_user_form_valid(self):
+        form_data = {
+            'first_name': 'Henry',
+            'last_name': 'Ford',
+            'username': 'henryford',
+            'email': 'henry@example.com',
+            'password': 'Password123!',
+        }
+        form = DonorUserForm(data=form_data)
+        self.assertTrue(form.is_valid())
+
+    def test_donor_form_valid(self):
+        form_data = {
+            'bloodgroup': 'O-',
+            'address': '100 Sunset Blvd',
+            'mobile': '9876543210',
+        }
+        form = DonorForm(data=form_data)
+        self.assertTrue(form.is_valid())
+
+    def test_donor_form_invalid_mobile(self):
+        form_data = {
+            'bloodgroup': 'O-',
+            'address': '100 Sunset Blvd',
+            'mobile': 'invalid123',
+        }
+        form = DonorForm(data=form_data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('mobile', form.errors)
+
 
