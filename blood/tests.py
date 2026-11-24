@@ -220,6 +220,22 @@ class BloodBankSystemTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn(reverse('patient_login'), response.url)
 
+    def test_patient_dashboard_non_patient_access_denied(self):
+        # Regular user without a patient profile
+        regular_user = User.objects.create_user(username='regularperson', password='password123')
+        self.client.force_login(regular_user)
+        response = self.client.get(reverse('patient_dashboard'), follow=True)
+        self.assertRedirects(response, reverse('home'))
+        self.assertContains(response, 'Access denied. The patient dashboard is only accessible to registered patients.')
+
+    def test_patient_dashboard_admin_access_redirected(self):
+        # Admin user without a patient profile is redirected to stock inventory
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('patient_dashboard'), follow=True)
+        self.assertRedirects(response, reverse('stock_list'))
+        self.assertContains(response, 'Access denied. The patient dashboard is only accessible to registered patients.')
+
+
     def test_patient_dashboard_content_and_session(self):
         # Create user and patient profile
         user = User.objects.create_user(username='dashuser', password='password123', first_name='Alex')

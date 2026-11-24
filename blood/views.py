@@ -16,6 +16,14 @@ def is_admin(user):
     return user.is_authenticated and (user.is_staff or user.is_superuser)
 
 
+def is_patient(user):
+    """Check if the user is authenticated and has a patient profile or belongs to PATIENT group."""
+    return user.is_authenticated and (
+        hasattr(user, 'patient_profile') or user.groups.filter(name='PATIENT').exists()
+    )
+
+
+
 def home(request):
     """
     Landing page: Shows blood bank overview, summary statistics,
@@ -284,7 +292,11 @@ def patient_login_view(request):
     - Redirects to patient_dashboard on success.
     """
     if request.user.is_authenticated:
-        return redirect('patient_dashboard')
+        if is_patient(request.user):
+            return redirect('patient_dashboard')
+        elif request.user.is_staff or request.user.is_superuser:
+            return redirect('stock_list')
+        return redirect('home')
 
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -329,13 +341,24 @@ def patient_logout_view(request):
 @login_required(login_url='patient_login')
 def patient_dashboard(request):
     """
-    Task: Create a dashboard/homepage for patients after login with session handling.
-    - Validates active session and user authentication.
-    - Retrieves patient medical profile and session state.
-    - Displays available blood units matching the patient's blood type.
-    - Computes compatible donor blood groups for emergency reference.
+    Task: Secure patient dashboard so only authenticated patients can access it.
+    - Enforces authentication via @login_required(login_url='patient_login').
+    - Restricts access strictly to verified patients (blocks unauthenticated visitors & non-patients).
+    - Redirects staff/admin or other non-patient users with an informative notification.
+    - Displays active session metrics, patient medical information, live matching blood units,
+      and transfusion compatibility guide.
     """
+    # Security Check: Ensure authenticated user is actually a registered patient
+    if not is_patient(request.user):
+        messages.error(request, 'Access denied. The patient dashboard is only accessible to registered patients.')
+        if request.user.is_staff or request.user.is_superuser:
+            return redirect('stock_list')
+        return redirect('home')
+
     patient = getattr(request.user, 'patient_profile', None)
+    if not patient:
+        messages.warning(request, 'Patient profile details not found. Please complete your registration.')
+        return redirect('patient_register')
 
     # Blood compatibility reference map (recipient -> acceptable donor types)
     compatibility_map = {
@@ -349,12 +372,8 @@ def patient_dashboard(request):
         'O-': ['O-'],
     }
 
-    matching_stock = None
-    compatible_groups = []
-    if patient:
-        matching_stock = Stock.objects.filter(bloodgroup=patient.bloodgroup).first()
-        compatible_groups = compatibility_map.get(patient.bloodgroup, [])
-
+    matching_stock = Stock.objects.filter(bloodgroup=patient.bloodgroup).first()
+    compatible_groups = compatibility_map.get(patient.bloodgroup, [])
     total_stock = Stock.objects.aggregate(Sum('unit'))['unit__sum'] or 0
 
     context = {
@@ -366,6 +385,7 @@ def patient_dashboard(request):
         'session_role': request.session.get('role', 'patient'),
     }
     return render(request, 'blood/patient_dashboard.html', context)
+
 
 
 def logout_view(request):
