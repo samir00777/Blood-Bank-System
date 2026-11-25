@@ -297,7 +297,7 @@ class BloodBankSystemTests(TestCase):
             'mobile': '9876543210',
         }
         response = self.client.post(reverse('donor_register'), payload)
-        self.assertRedirects(response, reverse('home'))
+        self.assertRedirects(response, reverse('donor_login'))
 
         # Check User created and password safely hashed
         user = User.objects.get(username='daviddonor')
@@ -398,5 +398,83 @@ class BloodBankSystemTests(TestCase):
         form = DonorForm(data=form_data)
         self.assertFalse(form.is_valid())
         self.assertIn('mobile', form.errors)
+
+    # ==========================================
+    # Tasks 1, 2, 3: Donor Authentication & Dashboard Access Control
+    # ==========================================
+    def test_donor_login_success(self):
+        user = User.objects.create_user(username='logindonor', password='Password123!', first_name='Leo')
+        donor = Donor.objects.create(user=user, bloodgroup='B+', address='88 River Road', mobile='9876543210')
+
+        response = self.client.post(reverse('donor_login'), {
+            'username': 'logindonor',
+            'password': 'Password123!',
+        })
+        self.assertRedirects(response, reverse('donor_dashboard'))
+        self.assertEqual(self.client.session.get('role'), 'donor')
+        self.assertEqual(self.client.session.get('donor_id'), donor.id)
+        self.assertEqual(self.client.session.get('bloodgroup'), 'B+')
+
+    def test_donor_login_invalid_credentials(self):
+        response = self.client.post(reverse('donor_login'), {
+            'username': 'nonexistent',
+            'password': 'wrongpassword',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Invalid username or password')
+
+    def test_donor_logout(self):
+        user = User.objects.create_user(username='logoutdonor', password='Password123!')
+        Donor.objects.create(user=user, bloodgroup='A-', address='10 Street', mobile='9876543210')
+        self.client.force_login(user)
+
+        response = self.client.get(reverse('donor_logout'))
+        self.assertRedirects(response, reverse('donor_login'))
+        self.assertFalse('_auth_user_id' in self.client.session)
+
+    def test_donor_dashboard_requires_login(self):
+        # Task 3: Unauthenticated user restricted from donor dashboard
+        response = self.client.get(reverse('donor_dashboard'))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('donor_login'), response.url)
+
+    def test_donor_dashboard_non_donor_access_denied(self):
+        # Task 3: Authenticated non-donor user restricted from donor dashboard
+        non_donor = User.objects.create_user(username='nondonoruser', password='Password123!')
+        self.client.force_login(non_donor)
+
+        response = self.client.get(reverse('donor_dashboard'), follow=True)
+        self.assertRedirects(response, reverse('home'))
+        self.assertContains(response, 'Access denied. The donor dashboard is only accessible to registered donors.')
+
+    def test_donor_dashboard_admin_access_redirected(self):
+        # Task 3: Staff/admin accessing donor dashboard redirected to stock list
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('donor_dashboard'), follow=True)
+        self.assertRedirects(response, reverse('stock_list'))
+        self.assertContains(response, 'Access denied. The donor dashboard is only accessible to registered donors.')
+
+    def test_donor_dashboard_content_and_session(self):
+        # Task 2: Authenticated donor accesses personalized dashboard
+        user = User.objects.create_user(username='activedonor', password='Password123!', first_name='Emma')
+        donor = Donor.objects.create(user=user, bloodgroup='O-', address='500 Hope St', mobile='9876543210')
+
+        self.client.force_login(user)
+        # Populate session state
+        session = self.client.session
+        session['role'] = 'donor'
+        session['donor_id'] = donor.id
+        session['bloodgroup'] = 'O-'
+        session.save()
+
+        response = self.client.get(reverse('donor_dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Welcome, Emma!')
+        self.assertContains(response, 'Session Active (Donor)')
+        self.assertContains(response, 'O-')
+        self.assertContains(response, 'Universal Red Cell Donor')
+        self.assertContains(response, '500 Hope St')
+        self.assertContains(response, '9876543210')
+
 
 

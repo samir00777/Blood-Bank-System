@@ -43,11 +43,19 @@
 
                 <div class="text-center pt-3 border-top small text-muted">
                     {% if is_admin %}
-                        Are you a patient? <a href="{% url 'patient_login' %}" class="text-danger fw-semibold">Patient Login</a>
-                    {% else %}
-                        Are you an administrator? <a href="{% url 'admin_login' %}" class="text-dark fw-semibold">Admin Login</a>
+                        Looking for user portals?
+                        <a href="{% url 'donor_login' %}" class="text-danger fw-semibold">Donor Login</a> |
+                        <a href="{% url 'patient_login' %}" class="text-danger fw-semibold">Patient Login</a>
+                    {% elif is_donor %}
+                        Are you a patient? <a href="{% url 'patient_login' %}" class="text-danger fw-semibold">Patient Login</a> |
+                        <a href="{% url 'admin_login' %}" class="text-dark fw-semibold">Admin</a>
                         <br>
-                        Don't have an account? <a href="{% url 'patient_register' %}" class="text-danger fw-semibold">Register here</a>
+                        New donor? <a href="{% url 'donor_register' %}" class="text-danger fw-semibold">Register as Donor</a>
+                    {% else %}
+                        Are you a donor? <a href="{% url 'donor_login' %}" class="text-danger fw-semibold">Donor Login</a> |
+                        <a href="{% url 'admin_login' %}" class="text-dark fw-semibold">Admin</a>
+                        <br>
+                        New patient? <a href="{% url 'patient_register' %}" class="text-danger fw-semibold">Register as Patient</a>
                     {% endif %}
                 </div>
             </div>

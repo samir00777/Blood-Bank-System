@@ -23,6 +23,14 @@ def is_patient(user):
     )
 
 
+def is_donor(user):
+    """Check if the user is authenticated and has a donor profile or belongs to DONOR group."""
+    return user.is_authenticated and (
+        hasattr(user, 'donor_profile') or user.groups.filter(name='DONOR').exists()
+    )
+
+
+
 
 def home(request):
     """
@@ -236,8 +244,8 @@ def donor_register(request):
                     donor.user = user
                     donor.save()
 
-                messages.success(request, f'Registration successful for donor {user.username}! Thank you for registering to save lives.')
-                return redirect('home')
+                messages.success(request, f'Registration successful for donor {user.username}! Thank you for registering to save lives. You can now log in.')
+                return redirect('donor_login')
             except Exception as e:
                 messages.error(request, f'Database error while saving donor: {str(e)}')
         else:
@@ -385,6 +393,118 @@ def patient_dashboard(request):
         'session_role': request.session.get('role', 'patient'),
     }
     return render(request, 'blood/patient_dashboard.html', context)
+
+
+# ==========================================
+# Donor Authentication & Dashboard Views (Tasks 1, 2 & 3)
+# ==========================================
+def donor_login_view(request):
+    """
+    Task 1: Implement donor login functionality.
+    - Validates donor credentials via AuthenticationForm.
+    - Sets up session attributes ('role': 'donor', 'donor_id', 'bloodgroup').
+    - Authenticates and logs in donor using Django's login().
+    - Redirects to donor_dashboard on success.
+    """
+    if request.user.is_authenticated:
+        if is_donor(request.user):
+            return redirect('donor_dashboard')
+        elif is_patient(request.user):
+            return redirect('patient_dashboard')
+        elif is_admin(request.user):
+            return redirect('stock_list')
+        return redirect('home')
+
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            user: User = form.get_user()
+            login(request, user)
+
+            # Session handling: Store donor session data
+            request.session['role'] = 'donor'
+            request.session['username'] = user.username
+            if hasattr(user, 'donor_profile'):
+                request.session['donor_id'] = user.donor_profile.id
+                request.session['bloodgroup'] = user.donor_profile.bloodgroup
+
+            messages.success(request, f'Welcome back, {user.first_name or user.username}!')
+            return redirect('donor_dashboard')
+        else:
+            messages.error(request, 'Invalid username or password. Please try again.')
+    else:
+        form = AuthenticationForm()
+
+    return render(request, 'blood/login.html', {
+        'form': form,
+        'title': 'Donor Login',
+        'is_donor': True,
+        'is_admin': False
+    })
+
+
+def donor_logout_view(request):
+    """
+    Task 1: Implement donor logout functionality.
+    - Clears all session keys and flushes session data.
+    - Logs out user via Django's logout().
+    - Redirects with a friendly notification message.
+    """
+    request.session.flush()
+    logout(request)
+    messages.info(request, 'You have been successfully logged out.')
+    return redirect('donor_login')
+
+
+@login_required(login_url='donor_login')
+def donor_dashboard(request):
+    """
+    Task 2 & 3: Create a donor dashboard view post-login & restrict access to logged-in donor users only.
+    - Enforces authentication via @login_required(login_url='donor_login').
+    - Restricts access strictly to verified donors (blocks unauthenticated visitors & non-donors).
+    - Redirects staff/admin or patient users with an informative notification.
+    - Displays active session metrics, donor profile, live bank stock, and blood donation impact compatibility guide.
+    """
+    # Task 3 Security Check: Ensure authenticated user is actually a registered donor
+    if not is_donor(request.user):
+        messages.error(request, 'Access denied. The donor dashboard is only accessible to registered donors.')
+        if is_admin(request.user):
+            return redirect('stock_list')
+        elif is_patient(request.user):
+            return redirect('patient_dashboard')
+        return redirect('home')
+
+    donor = getattr(request.user, 'donor_profile', None)
+    if not donor:
+        messages.warning(request, 'Donor profile details not found. Please complete your registration.')
+        return redirect('donor_register')
+
+    # Blood donation recipient compatibility map (who can RECEIVE this donor's blood)
+    donation_map = {
+        'O-': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'], # Universal Donor
+        'O+': ['O+', 'A+', 'B+', 'AB+'],
+        'B-': ['B+', 'B-', 'AB+', 'AB-'],
+        'B+': ['B+', 'AB+'],
+        'A-': ['A+', 'A-', 'AB+', 'AB-'],
+        'A+': ['A+', 'AB+'],
+        'AB-': ['AB+', 'AB-'],
+        'AB+': ['AB+'],
+    }
+
+    matching_stock = Stock.objects.filter(bloodgroup=donor.bloodgroup).first()
+    can_donate_to = donation_map.get(donor.bloodgroup, [])
+    total_stock = Stock.objects.aggregate(Sum('unit'))['unit__sum'] or 0
+
+    context = {
+        'donor': donor,
+        'user': request.user,
+        'matching_stock': matching_stock,
+        'can_donate_to': can_donate_to,
+        'total_stock': total_stock,
+        'session_role': request.session.get('role', 'donor'),
+    }
+    return render(request, 'blood/donor_dashboard.html', context)
+
 
 
 

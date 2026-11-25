@@ -22,5 +22,11 @@ urlpatterns = [
     path('patient-login/', views.patient_login_view, name='patient_login'),
     path('patient-logout/', views.patient_logout_view, name='patient_logout'),
     path('patient-dashboard/', views.patient_dashboard, name='patient_dashboard'),
+    
+    # Donor Authentication & Dashboard URLs (Tasks 1, 2, 3)
+    path('donor-login/', views.donor_login_view, name='donor_login'),
+    path('donor-logout/', views.donor_logout_view, name='donor_logout'),
+    path('donor-dashboard/', views.donor_dashboard, name='donor_dashboard'),
+    
     path('logout/', views.logout_view, name='logout'),
 ]
