@@ -23,6 +23,10 @@ urlpatterns = [
     path('patient-logout/', views.patient_logout_view, name='patient_logout'),
     path('patient-dashboard/', views.patient_dashboard, name='patient_dashboard'),
     
+    # Patient Email OTP Authentication (Tasks 1, 2, 3)
+    path('patient/request-otp/', views.patient_request_otp, name='patient_request_otp'),
+    path('patient/verify-otp/', views.patient_verify_otp, name='patient_verify_otp'),
+    
     # Donor Authentication & Dashboard URLs (Tasks 1, 2, 3)
     path('donor-login/', views.donor_login_view, name='donor_login'),
     path('donor-logout/', views.donor_logout_view, name='donor_logout'),

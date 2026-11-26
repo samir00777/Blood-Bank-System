@@ -185,3 +185,66 @@ class DonorForm(forms.ModelForm):
             raise forms.ValidationError('Please enter a valid mobile number (10 to 15 digits).')
         return mobile
 
+
+# ==========================================
+# OTP Verification Forms (Tasks 1 & 3)
+# ==========================================
+class PatientEmailOTPForm(forms.Form):
+    """
+    Task 1: Form where patients can enter their registered email to receive OTP.
+    """
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Enter registered email address (e.g. name@example.com)',
+            'required': 'required',
+            'autocomplete': 'email',
+            'autofocus': 'autofocus'
+        }),
+        label='Registered Patient Email'
+    )
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip().lower()
+        if not email:
+            raise forms.ValidationError('Email address is required.')
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            raise forms.ValidationError('No registered account found with this email address. Please register as a patient first.')
+
+        # Ensure user has a patient profile or belongs to PATIENT group
+        if not (hasattr(user, 'patient_profile') or user.groups.filter(name='PATIENT').exists()):
+            raise forms.ValidationError('This email is not associated with a registered patient account.')
+
+        self.user = user
+        return email
+
+
+class OTPVerificationForm(forms.Form):
+    """
+    Task 3: Verification form for entering the 6-digit OTP code.
+    """
+    otp = forms.CharField(
+        max_length=6,
+        min_length=6,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control form-control-lg text-center fw-bold fs-3 letter-spacing',
+            'placeholder': '••••••',
+            'maxlength': '6',
+            'autocomplete': 'one-time-code',
+            'required': 'required',
+            'autofocus': 'autofocus'
+        }),
+        label='6-Digit OTP Code'
+    )
+
+    def clean_otp(self):
+        otp = self.cleaned_data.get('otp', '').strip()
+        if not otp.isdigit():
+            raise forms.ValidationError('OTP must contain only numbers.')
+        if len(otp) != 6:
+            raise forms.ValidationError('OTP must be exactly 6 digits.')
+        return otp
+
+

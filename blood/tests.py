@@ -1,8 +1,9 @@
 from django.test import TestCase, Client
 from django.urls import reverse
+from django.core import mail
 from django.contrib.auth.models import User
 from blood.models import Stock, Patient, Donor
-from blood.forms import DonorUserForm, DonorForm
+from blood.forms import DonorUserForm, DonorForm, PatientEmailOTPForm, OTPVerificationForm
 
 
 class BloodBankSystemTests(TestCase):
@@ -475,6 +476,152 @@ class BloodBankSystemTests(TestCase):
         self.assertContains(response, 'Universal Red Cell Donor')
         self.assertContains(response, '500 Hope St')
         self.assertContains(response, '9876543210')
+
+    # ==========================================
+    # Tasks 1, 2 & 3: Patient Email OTP Authentication
+    # ==========================================
+    def test_patient_email_otp_form_validation(self):
+        # Task 1: Create a form where patients can enter their registered email to receive OTP
+        user = User.objects.create_user(username='otpuser1', email='otpuser1@example.com', password='Password123!')
+        Patient.objects.create(
+            user=user, age=30, bloodgroup='B+', disease='None',
+            doctorname='Dr. Smith', mobile='9876543210', address='123 Road'
+        )
+
+        # Valid registered patient email
+        form = PatientEmailOTPForm(data={'email': 'otpuser1@example.com'})
+        self.assertTrue(form.is_valid())
+
+        # Non-existent email
+        invalid_form = PatientEmailOTPForm(data={'email': 'notfound@example.com'})
+        self.assertFalse(invalid_form.is_valid())
+        self.assertIn('email', invalid_form.errors)
+
+        # Non-patient user email
+        User.objects.create_user(username='regularonly', email='regular@example.com', password='Password123!')
+        non_patient_form = PatientEmailOTPForm(data={'email': 'regular@example.com'})
+        self.assertFalse(non_patient_form.is_valid())
+        self.assertIn('email', non_patient_form.errors)
+
+    def test_otp_verification_form_validation(self):
+        # Task 3: Verification form validation
+        valid_form = OTPVerificationForm(data={'otp': '654321'})
+        self.assertTrue(valid_form.is_valid())
+
+        invalid_form_letters = OTPVerificationForm(data={'otp': 'abc123'})
+        self.assertFalse(invalid_form_letters.is_valid())
+
+        invalid_form_length = OTPVerificationForm(data={'otp': '1234'})
+        self.assertFalse(invalid_form_length.is_valid())
+
+    def test_patient_request_otp_get(self):
+        # Task 1: Form page renders successfully
+        response = self.client.get(reverse('patient_request_otp'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Patient OTP Verification')
+        self.assertContains(response, 'Send Verification OTP')
+
+    def test_patient_request_otp_generates_random_otp_and_sends_email(self):
+        # Task 2: Generate random OTP and send it to the patient's email using Django's email backend
+        mail.outbox.clear()
+        user = User.objects.create_user(username='patientmail', email='patientmail@example.com', password='Password123!')
+        Patient.objects.create(
+            user=user, age=40, bloodgroup='O+', disease='Routine',
+            doctorname='Dr. Grey', mobile='9876543210', address='Grey Clinic'
+        )
+
+        response = self.client.post(reverse('patient_request_otp'), {
+            'email': 'patientmail@example.com'
+        })
+        self.assertRedirects(response, reverse('patient_verify_otp'))
+
+        # Verify email was dispatched via Django email backend
+        self.assertEqual(len(mail.outbox), 1)
+        sent_email = mail.outbox[0]
+        self.assertIn('patientmail@example.com', sent_email.to)
+        self.assertIn('Verification OTP', sent_email.subject)
+
+        # Verify 6-digit random OTP generated in session and included in email body
+        session_otp = self.client.session.get('patient_otp')
+        self.assertIsNotNone(session_otp)
+        self.assertEqual(len(session_otp), 6)
+        self.assertTrue(session_otp.isdigit())
+        self.assertIn(session_otp, sent_email.body)
+
+    def test_patient_verify_otp_get_without_session_redirects(self):
+        # Task 3: Direct access without requesting OTP redirects back
+        response = self.client.get(reverse('patient_verify_otp'))
+        self.assertRedirects(response, reverse('patient_request_otp'))
+
+    def test_patient_verify_otp_invalid_code(self):
+        # Task 3: Entering incorrect OTP is rejected
+        user = User.objects.create_user(username='otpwrong', email='wrong@example.com', password='Password123!')
+        Patient.objects.create(
+            user=user, age=22, bloodgroup='A+', disease='Checkup',
+            doctorname='Dr. House', mobile='9876543210', address='1 Clinic St'
+        )
+        session = self.client.session
+        session['patient_otp'] = '999888'
+        session['otp_user_id'] = user.id
+        session['otp_email'] = 'wrong@example.com'
+        import time
+        session['otp_timestamp'] = time.time()
+        session.save()
+
+        response = self.client.post(reverse('patient_verify_otp'), {
+            'otp': '111222' # Incorrect code
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Invalid OTP code')
+        self.assertFalse('_auth_user_id' in self.client.session)
+
+    def test_patient_verify_otp_success_logs_in_patient(self):
+        # Task 3: Entering correct OTP logs patient in and navigates to dashboard
+        user = User.objects.create_user(username='otpsuccess', email='success@example.com', password='Password123!', first_name='Clara')
+        patient = Patient.objects.create(
+            user=user, age=29, bloodgroup='AB-', disease='None',
+            doctorname='Dr. Watson', mobile='9876543210', address='221B Baker St'
+        )
+        session = self.client.session
+        session['patient_otp'] = '456789'
+        session['otp_user_id'] = user.id
+        session['otp_email'] = 'success@example.com'
+        import time
+        session['otp_timestamp'] = time.time()
+        session.save()
+
+        response = self.client.post(reverse('patient_verify_otp'), {
+            'otp': '456789'
+        })
+        self.assertRedirects(response, reverse('patient_dashboard'))
+
+        # Verify patient authenticated in session
+        self.assertEqual(int(self.client.session.get('_auth_user_id')), user.id)
+        self.assertEqual(self.client.session.get('role'), 'patient')
+        self.assertEqual(self.client.session.get('patient_id'), patient.id)
+        # Verify OTP session keys cleared
+        self.assertNotIn('patient_otp', self.client.session)
+
+    def test_patient_verify_otp_expired_code(self):
+        # Task 3: Expired OTP is rejected
+        user = User.objects.create_user(username='otpexpired', email='expired@example.com', password='Password123!')
+        Patient.objects.create(
+            user=user, age=29, bloodgroup='AB-', disease='None',
+            doctorname='Dr. Watson', mobile='9876543210', address='221B Baker St'
+        )
+        session = self.client.session
+        session['patient_otp'] = '123456'
+        session['otp_user_id'] = user.id
+        session['otp_email'] = 'expired@example.com'
+        import time
+        session['otp_timestamp'] = time.time() - 700 # Expired (>600 seconds)
+        session.save()
+
+        response = self.client.post(reverse('patient_verify_otp'), {
+            'otp': '123456'
+        })
+        self.assertRedirects(response, reverse('patient_request_otp'))
+
 
 
 

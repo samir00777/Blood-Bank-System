@@ -1,3 +1,7 @@
+import random
+import time
+from django.conf import settings
+from django.core.mail import send_mail
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -8,7 +12,10 @@ from django.db import transaction
 from django.db.models import Sum
 
 from .models import Stock, Patient, Donor, BLOOD_GROUP_CHOICES
-from .forms import StockForm, PatientUserForm, PatientForm, DonorUserForm, DonorForm
+from .forms import (
+    StockForm, PatientUserForm, PatientForm, DonorUserForm, DonorForm,
+    PatientEmailOTPForm, OTPVerificationForm
+)
 
 
 def is_admin(user):
@@ -344,6 +351,134 @@ def patient_logout_view(request):
     logout(request)
     messages.info(request, 'You have been successfully logged out.')
     return redirect('patient_login')
+
+
+# ==========================================
+# Patient Email OTP Authentication Views (Tasks 1, 2 & 3)
+# ==========================================
+def patient_request_otp(request):
+    """
+    Task 1: Create a form where patients can enter their registered email to receive OTP.
+    Task 2: Generate random OTP and send it to the patient's email using Django's email backend.
+    """
+    if request.user.is_authenticated and is_patient(request.user):
+        return redirect('patient_dashboard')
+
+    if request.method == 'POST':
+        form = PatientEmailOTPForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email']
+            user: User = form.user
+
+            # Task 2: Generate random 6-digit OTP
+            otp = f"{random.randint(100000, 999999)}"
+
+            # Store OTP and metadata in session (10 minutes validity)
+            request.session['patient_otp'] = str(otp)
+            request.session['otp_user_id'] = user.id
+            request.session['otp_email'] = email
+            request.session['otp_timestamp'] = time.time()
+
+            # Task 2: Send OTP to patient's email using Django's email backend
+            subject = 'Blood Bank System - Your Login Verification OTP'
+            message = (
+                f"Hello {user.first_name or user.username},\n\n"
+                f"Your One-Time Password (OTP) for patient login verification is:\n\n"
+                f"   {otp}\n\n"
+                f"This code will expire in 10 minutes.\n"
+                f"If you did not request this OTP, please ignore this email.\n\n"
+                f"Best regards,\nBlood Bank System Team"
+            )
+            from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'bloodbank@example.com')
+            try:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=from_email,
+                    recipient_list=[email],
+                    fail_silently=False,
+                )
+                messages.success(request, f'A 6-digit OTP has been sent to {email}. Please enter it below.')
+                return redirect('patient_verify_otp')
+            except Exception as e:
+                messages.error(request, f'Unable to send OTP email: {str(e)}')
+        else:
+            messages.error(request, 'Please check your email address and try again.')
+    else:
+        form = PatientEmailOTPForm()
+
+    return render(request, 'blood/patient_request_otp.html', {'form': form})
+
+
+def patient_verify_otp(request):
+    """
+    Task 3: Create a verification page for entering OTP.
+    - Validates entered OTP against session-stored OTP.
+    - Enforces 10-minute expiry window.
+    - Logs in verified patient and redirects to dashboard.
+    """
+    if request.user.is_authenticated and is_patient(request.user):
+        return redirect('patient_dashboard')
+
+    stored_otp = request.session.get('patient_otp')
+    user_id = request.session.get('otp_user_id')
+    otp_email = request.session.get('otp_email', '')
+
+    # Redirect to request page if no active OTP session exists
+    if not stored_otp or not user_id:
+        messages.warning(request, 'Please enter your registered email to request an OTP code first.')
+        return redirect('patient_request_otp')
+
+    # Check expiration (10 minutes = 600 seconds)
+    otp_timestamp = request.session.get('otp_timestamp', 0)
+    if time.time() - otp_timestamp > 600:
+        request.session.pop('patient_otp', None)
+        request.session.pop('otp_user_id', None)
+        request.session.pop('otp_email', None)
+        request.session.pop('otp_timestamp', None)
+        messages.error(request, 'Your OTP has expired. Please request a new verification code.')
+        return redirect('patient_request_otp')
+
+    if request.method == 'POST':
+        form = OTPVerificationForm(request.POST)
+        if form.is_valid():
+            entered_otp = form.cleaned_data['otp']
+            if entered_otp == stored_otp:
+                try:
+                    user = User.objects.get(id=user_id)
+                    login(request, user)
+
+                    # Initialize patient session
+                    request.session['role'] = 'patient'
+                    request.session['username'] = user.username
+                    if hasattr(user, 'patient_profile'):
+                        request.session['patient_id'] = user.patient_profile.id
+                        request.session['bloodgroup'] = user.patient_profile.bloodgroup
+
+                    # Clear OTP session keys
+                    request.session.pop('patient_otp', None)
+                    request.session.pop('otp_user_id', None)
+                    request.session.pop('otp_email', None)
+                    request.session.pop('otp_timestamp', None)
+
+                    messages.success(request, f'Welcome back, {user.first_name or user.username}! OTP verified successfully.')
+                    return redirect('patient_dashboard')
+                except User.DoesNotExist:
+                    messages.error(request, 'Patient account could not be found.')
+                    return redirect('patient_request_otp')
+            else:
+                messages.error(request, 'Invalid OTP code. Please enter the correct 6-digit code sent to your email.')
+        else:
+            messages.error(request, 'Please enter a valid 6-digit OTP code.')
+    else:
+        form = OTPVerificationForm()
+
+    context = {
+        'form': form,
+        'email': otp_email,
+    }
+    return render(request, 'blood/patient_verify_otp.html', context)
+
 
 
 @login_required(login_url='patient_login')

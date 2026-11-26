@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Request Login OTP - Blood Bank System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7 col-lg-5">
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-header bg-danger text-white py-3 text-center">
+                <h4 class="fw-bold mb-0">
+                    <i class="bi bi-shield-lock-fill me-2"></i>Patient OTP Verification
+                </h4>
+                <small class="opacity-75">Receive a 6-digit one-time code to login</small>
+            </div>
+            <div class="card-body p-4 p-md-5">
+                <div class="text-center mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-danger-subtle text-danger rounded-circle p-3 mb-2" style="width: 70px; height: 70px;">
+                        <i class="bi bi-envelope-check-fill fs-2"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mt-2">Enter Registered Email</h5>
+                    <p class="text-muted small">We will send a one-time verification password (OTP) directly to your registered patient email address.</p>
+                </div>
+
+                <form method="POST" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger shadow-sm py-2 mb-3 small" role="alert">
+                            {% for error in form.non_field_errors %}
+                                <div><i class="bi bi-exclamation-triangle-fill me-1"></i>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-4">
+                        <label for="{{ form.email.id_for_label }}" class="form-label fw-semibold">
+                            Registered Email Address <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-envelope text-muted"></i></span>
+                            {{ form.email }}
+                        </div>
+                        {% if form.email.errors %}
+                            <div class="text-danger small mt-1">
+                                <i class="bi bi-exclamation-circle me-1"></i>{{ form.email.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-danger btn-lg w-100 fw-semibold shadow-sm mb-3">
+                        <i class="bi bi-send-fill me-2"></i>Send Verification OTP
+                    </button>
+                </form>
+
+                <div class="text-center pt-3 border-top small text-muted">
+                    <span>Prefer password login?</span>
+                    <a href="{% url 'patient_login' %}" class="text-danger fw-semibold ms-1">Login with Password</a>
+                    <br>
+                    <span>Not registered yet?</span>
+                    <a href="{% url 'patient_register' %}" class="text-danger fw-semibold ms-1">Register as Patient</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

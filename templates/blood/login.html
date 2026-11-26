@@ -52,6 +52,11 @@
                         <br>
                         New donor? <a href="{% url 'donor_register' %}" class="text-danger fw-semibold">Register as Donor</a>
                     {% else %}
+                        <div class="mb-2">
+                            <a href="{% url 'patient_request_otp' %}" class="btn btn-outline-danger btn-sm w-100">
+                                <i class="bi bi-shield-lock me-1"></i>Login with Email OTP Instead
+                            </a>
+                        </div>
                         Are you a donor? <a href="{% url 'donor_login' %}" class="text-danger fw-semibold">Donor Login</a> |
                         <a href="{% url 'admin_login' %}" class="text-dark fw-semibold">Admin</a>
                         <br>
