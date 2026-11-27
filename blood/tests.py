@@ -3,7 +3,10 @@ from django.urls import reverse
 from django.core import mail
 from django.contrib.auth.models import User
 from blood.models import Stock, Patient, Donor
-from blood.forms import DonorUserForm, DonorForm, PatientEmailOTPForm, OTPVerificationForm
+from blood.forms import (
+    DonorUserForm, DonorForm, PatientEmailOTPForm, OTPVerificationForm,
+    PatientPasswordResetForm, DonorForgotPasswordForm
+)
 
 
 class BloodBankSystemTests(TestCase):
@@ -575,8 +578,8 @@ class BloodBankSystemTests(TestCase):
         self.assertContains(response, 'Invalid OTP code')
         self.assertFalse('_auth_user_id' in self.client.session)
 
-    def test_patient_verify_otp_success_logs_in_patient(self):
-        # Task 3: Entering correct OTP logs patient in and navigates to dashboard
+    def test_patient_verify_otp_success_redirects_to_password_reset(self):
+        # Task 1: After successful OTP verification, redirect to password reset page
         user = User.objects.create_user(username='otpsuccess', email='success@example.com', password='Password123!', first_name='Clara')
         patient = Patient.objects.create(
             user=user, age=29, bloodgroup='AB-', disease='None',
@@ -593,17 +596,17 @@ class BloodBankSystemTests(TestCase):
         response = self.client.post(reverse('patient_verify_otp'), {
             'otp': '456789'
         })
-        self.assertRedirects(response, reverse('patient_dashboard'))
+        self.assertRedirects(response, reverse('patient_reset_password'))
 
-        # Verify patient authenticated in session
-        self.assertEqual(int(self.client.session.get('_auth_user_id')), user.id)
-        self.assertEqual(self.client.session.get('role'), 'patient')
-        self.assertEqual(self.client.session.get('patient_id'), patient.id)
+        # Verify session state for password reset
+        self.assertTrue(self.client.session.get('otp_verified_for_reset'))
+        self.assertEqual(self.client.session.get('reset_user_id'), user.id)
         # Verify OTP session keys cleared
         self.assertNotIn('patient_otp', self.client.session)
+        self.assertNotIn('otp_timestamp', self.client.session)
 
     def test_patient_verify_otp_expired_code(self):
-        # Task 3: Expired OTP is rejected
+        # Expired OTP is rejected
         user = User.objects.create_user(username='otpexpired', email='expired@example.com', password='Password123!')
         Patient.objects.create(
             user=user, age=29, bloodgroup='AB-', disease='None',
@@ -621,6 +624,121 @@ class BloodBankSystemTests(TestCase):
             'otp': '123456'
         })
         self.assertRedirects(response, reverse('patient_request_otp'))
+
+    # =========================================================================
+    # Task 2: Implement logic to update the patient password securely after reset
+    # =========================================================================
+    def test_patient_reset_password_unauthorized_access_redirects(self):
+        # Direct access to password reset page without OTP verification redirects to request OTP
+        response = self.client.get(reverse('patient_reset_password'))
+        self.assertRedirects(response, reverse('patient_request_otp'))
+
+    def test_patient_reset_password_get_with_verified_session(self):
+        # GET renders reset form when OTP has been verified
+        user = User.objects.create_user(username='resetuser1', email='reset1@example.com', password='OldPassword123!')
+        session = self.client.session
+        session['otp_verified_for_reset'] = True
+        session['reset_user_id'] = user.id
+        session.save()
+
+        response = self.client.get(reverse('patient_reset_password'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'blood/patient_reset_password.html')
+
+    def test_patient_reset_password_mismatched_passwords(self):
+        # Form validation rejects non-matching passwords
+        user = User.objects.create_user(username='resetuser2', email='reset2@example.com', password='OldPassword123!')
+        session = self.client.session
+        session['otp_verified_for_reset'] = True
+        session['reset_user_id'] = user.id
+        session.save()
+
+        response = self.client.post(reverse('patient_reset_password'), {
+            'new_password': 'BrandNewPassword123!',
+            'confirm_password': 'DifferentPassword456!'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Passwords do not match.')
+
+    def test_patient_reset_password_success_updates_password_securely(self):
+        # Secure password update using set_password(), resets flags and redirects to login
+        from django.contrib.auth import authenticate
+        user = User.objects.create_user(username='resetuser3', email='reset3@example.com', password='OldPassword123!')
+        session = self.client.session
+        session['otp_verified_for_reset'] = True
+        session['reset_user_id'] = user.id
+        session.save()
+
+        response = self.client.post(reverse('patient_reset_password'), {
+            'new_password': 'BrandNewPassword123!',
+            'confirm_password': 'BrandNewPassword123!'
+        })
+        self.assertRedirects(response, reverse('patient_login'))
+
+        # Verify old password no longer works
+        self.assertIsNone(authenticate(username='resetuser3', password='OldPassword123!'))
+        # Verify new password is valid and securely updated
+        updated_user = authenticate(username='resetuser3', password='BrandNewPassword123!')
+        self.assertIsNotNone(updated_user)
+        self.assertEqual(updated_user.id, user.id)
+
+        # Verify session flags cleared
+        self.assertNotIn('otp_verified_for_reset', self.client.session)
+        self.assertNotIn('reset_user_id', self.client.session)
+
+    # =========================================================================
+    # Task 3: Build a donor forgot password form for email input
+    # =========================================================================
+    def test_donor_forgot_password_form_validation(self):
+        # Donor forgot password form validates registered donor email
+        user = User.objects.create_user(username='donoruser1', email='donor1@example.com', password='Password123!')
+        Donor.objects.create(
+            user=user, bloodgroup='O+', address='123 Street',
+            mobile='9876543210'
+        )
+
+        # Valid donor email
+        form_valid = DonorForgotPasswordForm(data={'email': 'donor1@example.com'})
+        self.assertTrue(form_valid.is_valid())
+
+        # Unregistered email
+        form_invalid = DonorForgotPasswordForm(data={'email': 'unregistered@example.com'})
+        self.assertFalse(form_invalid.is_valid())
+        self.assertIn('No registered donor account found with this email address.', form_invalid.errors['email'])
+
+    def test_donor_forgot_password_get_renders_form(self):
+        # GET renders donor forgot password page
+        response = self.client.get(reverse('donor_forgot_password'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'blood/donor_forgot_password.html')
+
+    def test_donor_forgot_password_post_generates_otp_and_sends_email(self):
+        # POST with registered donor email generates OTP and sends email via Django email backend
+        mail.outbox = []
+        user = User.objects.create_user(username='donoruser2', email='donor2@example.com', password='Password123!', first_name='Robert')
+        Donor.objects.create(
+            user=user, bloodgroup='B+', address='456 Avenue',
+            mobile='9876543211'
+        )
+
+        response = self.client.post(reverse('donor_forgot_password'), {
+            'email': 'donor2@example.com'
+        })
+        self.assertEqual(response.status_code, 200)
+
+        # Verify email dispatched
+        self.assertEqual(len(mail.outbox), 1)
+        sent_email = mail.outbox[0]
+        self.assertIn('Password Reset OTP', sent_email.subject)
+        self.assertEqual(sent_email.to, ['donor2@example.com'])
+
+        # Verify OTP generated in session
+        session_otp = self.client.session.get('donor_otp')
+        self.assertIsNotNone(session_otp)
+        self.assertEqual(len(session_otp), 6)
+        self.assertTrue(session_otp.isdigit())
+        self.assertIn(session_otp, sent_email.body)
+
 
 
 

@@ -248,3 +248,72 @@ class OTPVerificationForm(forms.Form):
         return otp
 
 
+class PatientPasswordResetForm(forms.Form):
+    """
+    Task 2: Form to update the patient password securely after OTP verification.
+    """
+    new_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Enter new password',
+            'autocomplete': 'new-password',
+            'required': 'required',
+            'autofocus': 'autofocus'
+        }),
+        min_length=6,
+        label='New Password',
+        help_text='At least 6 characters required.'
+    )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Confirm new password',
+            'autocomplete': 'new-password',
+            'required': 'required'
+        }),
+        min_length=6,
+        label='Confirm New Password'
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        new_password = cleaned_data.get('new_password')
+        confirm_password = cleaned_data.get('confirm_password')
+
+        if new_password and confirm_password and new_password != confirm_password:
+            raise forms.ValidationError('Passwords do not match. Please enter identical passwords.')
+        return cleaned_data
+
+
+class DonorForgotPasswordForm(forms.Form):
+    """
+    Task 3: Build a donor forgot password form for email input.
+    """
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Enter registered donor email (e.g. name@example.com)',
+            'required': 'required',
+            'autocomplete': 'email',
+            'autofocus': 'autofocus'
+        }),
+        label='Registered Donor Email'
+    )
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip().lower()
+        if not email:
+            raise forms.ValidationError('Email address is required.')
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            raise forms.ValidationError('No registered donor account found with this email address.')
+
+        if not (hasattr(user, 'donor_profile') or user.groups.filter(name='DONOR').exists()):
+            raise forms.ValidationError('This email is not associated with a registered donor account.')
+
+        self.user = user
+        return email
+
+
+

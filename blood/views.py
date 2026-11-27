@@ -14,7 +14,7 @@ from django.db.models import Sum
 from .models import Stock, Patient, Donor, BLOOD_GROUP_CHOICES
 from .forms import (
     StockForm, PatientUserForm, PatientForm, DonorUserForm, DonorForm,
-    PatientEmailOTPForm, OTPVerificationForm
+    PatientEmailOTPForm, OTPVerificationForm, PatientPasswordResetForm, DonorForgotPasswordForm
 )
 
 
@@ -444,28 +444,16 @@ def patient_verify_otp(request):
         if form.is_valid():
             entered_otp = form.cleaned_data['otp']
             if entered_otp == stored_otp:
-                try:
-                    user = User.objects.get(id=user_id)
-                    login(request, user)
+                # Task 1: After successful OTP verification, redirect to password reset page
+                request.session['otp_verified_for_reset'] = True
+                request.session['reset_user_id'] = user_id
 
-                    # Initialize patient session
-                    request.session['role'] = 'patient'
-                    request.session['username'] = user.username
-                    if hasattr(user, 'patient_profile'):
-                        request.session['patient_id'] = user.patient_profile.id
-                        request.session['bloodgroup'] = user.patient_profile.bloodgroup
+                # Clear OTP from session
+                request.session.pop('patient_otp', None)
+                request.session.pop('otp_timestamp', None)
 
-                    # Clear OTP session keys
-                    request.session.pop('patient_otp', None)
-                    request.session.pop('otp_user_id', None)
-                    request.session.pop('otp_email', None)
-                    request.session.pop('otp_timestamp', None)
-
-                    messages.success(request, f'Welcome back, {user.first_name or user.username}! OTP verified successfully.')
-                    return redirect('patient_dashboard')
-                except User.DoesNotExist:
-                    messages.error(request, 'Patient account could not be found.')
-                    return redirect('patient_request_otp')
+                messages.success(request, 'OTP verified successfully! Please enter your new password below.')
+                return redirect('patient_reset_password')
             else:
                 messages.error(request, 'Invalid OTP code. Please enter the correct 6-digit code sent to your email.')
         else:
@@ -478,6 +466,47 @@ def patient_verify_otp(request):
         'email': otp_email,
     }
     return render(request, 'blood/patient_verify_otp.html', context)
+
+
+def patient_reset_password(request):
+    """
+    Task 1 & 2:
+    - Task 1: After successful OTP verification, redirect to password reset page.
+    - Task 2: Implement logic to update the patient password securely after reset.
+    """
+    if not request.session.get('otp_verified_for_reset') or not request.session.get('reset_user_id'):
+        messages.warning(request, 'Please verify your OTP code before resetting your password.')
+        return redirect('patient_request_otp')
+
+    user_id = request.session.get('reset_user_id')
+    user = get_object_or_404(User, id=user_id)
+
+    if request.method == 'POST':
+        form = PatientPasswordResetForm(request.POST)
+        if form.is_valid():
+            new_password = form.cleaned_data['new_password']
+
+            # Task 2: Securely update password using Django's password hashing
+            user.set_password(new_password)
+            user.save()
+
+            # Clear reset session flags
+            request.session.pop('otp_verified_for_reset', None)
+            request.session.pop('reset_user_id', None)
+            request.session.pop('otp_email', None)
+
+            messages.success(request, f'Password successfully updated for {user.username}! Please log in with your new password.')
+            return redirect('patient_login')
+        else:
+            messages.error(request, 'Please correct the errors in the password form.')
+    else:
+        form = PatientPasswordResetForm()
+
+    return render(request, 'blood/patient_reset_password.html', {
+        'form': form,
+        'patient_user': user,
+    })
+
 
 
 
@@ -589,6 +618,69 @@ def donor_logout_view(request):
     logout(request)
     messages.info(request, 'You have been successfully logged out.')
     return redirect('donor_login')
+
+
+def donor_forgot_password(request):
+    """
+    Task 3: Build a donor forgot password form for email input.
+    - Captures registered donor email via DonorForgotPasswordForm.
+    - Validates that email belongs to an existing donor account.
+    - Generates a random 6-digit OTP and dispatches it via Django's email backend.
+    """
+    if request.user.is_authenticated and is_donor(request.user):
+        return redirect('donor_dashboard')
+
+    if request.method == 'POST':
+        form = DonorForgotPasswordForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email']
+            user: User = form.user
+
+            # Generate random 6-digit OTP for donor password reset
+            otp = f"{random.randint(100000, 999999)}"
+
+            request.session['donor_otp'] = str(otp)
+            request.session['donor_reset_user_id'] = user.id
+            request.session['donor_otp_email'] = email
+            request.session['donor_otp_timestamp'] = time.time()
+
+            subject = 'Blood Bank System - Donor Password Reset OTP'
+            message = (
+                f"Hello {user.first_name or user.username},\n\n"
+                f"You requested a password reset for your donor account.\n"
+                f"Your One-Time Password (OTP) is: {otp}\n\n"
+                f"This code will expire in 10 minutes.\n"
+                f"If you did not request this, please ignore this email.\n\n"
+                f"Best regards,\nBlood Bank System Team"
+            )
+            from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'bloodbank@example.com')
+            try:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=from_email,
+                    recipient_list=[email],
+                    fail_silently=False,
+                )
+                messages.success(request, f'A password reset OTP has been sent to {email}.')
+            except Exception as e:
+                messages.error(request, f'Unable to send OTP email: {str(e)}')
+
+            return render(request, 'blood/donor_forgot_password.html', {
+                'form': form,
+                'otp_sent': True,
+                'email': email,
+            })
+        else:
+            messages.error(request, 'Please enter a valid registered donor email address.')
+    else:
+        form = DonorForgotPasswordForm()
+
+    return render(request, 'blood/donor_forgot_password.html', {
+        'form': form,
+        'otp_sent': False,
+    })
+
 
 
 @login_required(login_url='donor_login')
